@@ -1,0 +1,61 @@
+BI !VARLST
+1281.25
+t1343.75
+te1515.625
+tes4609.375
+test31421.875
+
+BI VARLST
+1406.25
+t1375
+te2578.125
+tes7640.625
+test89359.375
+
+!BI !VARLST
+62.5
+t31.25
+te46.875
+tes62.5
+test62.5
+
+!BI VARLST
+62.5
+t31.25
+te46.875
+tes62.5
+test62.5
+
+63346002208937.5
+l|a|/n|k|aa|v|ee|
+l|a|/n|k|aa|
+l|a|/n|k|aa|v|a|
+l|a|/n|k|aa|v|a|t|a|
+l|a|/n|k|aa|v|e|n|
+l|a|/n|k|aa|dx|ii|p|a|
+l|a|/n|k|aa|v|e|h|i|
+l|a|/n|k|aa|v|e|
+l|a|/n|k|aa|dx|ii|p|a|y|ee|
+l|a|/n|k|aa|v|a|k|
+lanka
+156.25
+続行するには何かキーを押してください . . .
+
+
+63346002328328.1
+l|a|/n|k|aa|v|ee|
+l|a|/n|k|aa|
+l|a|/n|k|aa|v|a|
+l|a|/n|k|aa|v|a|t|a|
+l|a|/n|k|aa|v|e|n|
+l|a|/n|k|aa|dx|ii|p|a|
+l|a|/n|k|aa|v|e|h|i|
+l|a|/n|k|aa|v|e|
+l|a|/n|k|aa|dx|ii|p|a|y|ee|
+l|a|/n|k|aa|v|a|k|
+lanka
+156.25
+続行するには何かキーを押してください . . .
+
+
+

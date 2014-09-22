@@ -1,0 +1,186 @@
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.IO;
+using System.Threading;
+//using System.Runtime.Serialization;
+//using System.Runtime.Serialization.Formatters.Binary;
+
+namespace SriShell_Guess
+{
+    //[Serializable()]
+    class word:IComparable//,ISerializable
+    {
+        int m_count = 0;
+        string m_word;
+        word m_parent=null;
+        SortedList<string, word> children = new SortedList<string, word>();
+        word() { Add("", 0); }
+        word(string s, int c,string complete_word,word parent) { Add(s, c,complete_word,parent); }
+        void Add(string s, int c) {Add(s, c, s, null); }
+        void Add(string s, int c, string complete_word, word parent)
+        {
+            //Console.WriteLine("Adding {0} {1}", s, c);
+            if (s == "")
+            {
+                m_count += c;
+                m_word=complete_word;
+                m_parent=parent;
+                return;
+            }
+            string ky = Regex.Replace(s, @"\|.*", "");
+            string val = Regex.Replace(s, @"^[^|]*\|", "");
+            try
+            {
+                children[ky].Add(val, c,complete_word,this);
+            }
+            catch
+            {
+                children[ky] = new word(val, c,complete_word,this);
+            }
+        }
+        List<word> find(string s)
+        {
+            List<word> r = new List<word>();
+            if (s == "")
+            {
+                if(count > 0)
+                    r.Add(this);
+                foreach (string anull in nulls)
+                    try { r.AddRange(children[anull].find(s)); }catch { }
+                return r;
+            }
+            string ky = Regex.Replace(s, @"\|.*", "");
+            string val = Regex.Replace(s, @"^[^|]*\|", "");
+            try{r.AddRange(children[ky].find(val));}catch{}
+            foreach (string anull in nulls)
+            {
+                try { r.AddRange(children[anull].find(s)); }
+                catch { }
+            }
+            return r;
+        }
+        List<word> findpartial(string s)
+        {
+            const int MAX = 10;
+            List<word> r = new List<word>();
+            if (s == "")
+            {
+                if (count > 0) r.Add(this);
+                foreach (word child in children.Values)
+                {
+                    r.AddRange(child.findpartial(""));
+                    if (r.Count > MAX) return r;
+                }
+                return r;
+            }
+            string ky = Regex.Replace(s, @"\|.*", "");
+            string val = Regex.Replace(s, @"^[^|]*\|", "");
+            try { r.AddRange(children[ky].findpartial(val)); }
+            catch { }
+            foreach (string anull in nulls)
+            {
+                try { r.AddRange(children[anull].findpartial(s)); }
+                catch { }
+            }
+            return r;
+        }
+        public override string ToString(){return m_word;}
+        public int CompareTo(object o){return ((word) o).count-count;}
+        int count{get{return m_count;} }
+#region STATICS
+        static word BASE_WORD;
+        //static word dummy;
+        static List<variation> variations = new List<variation>();
+        static List<string> nulls = new List<string>();
+        static List<string> BadCandidates = new List<string>();
+        public static word BestSelection(string s)
+        {
+            return Selections(s)[0];
+        }
+        public static List<word> Selections(string s)
+        {
+            List<word> r = new List<word>();
+            if (s.Length <= 1) BadCandidates.Clear();
+            List<string> can = candidates("", s);
+            foreach (string c in can)
+                r.AddRange(BASE_WORD.find(c));
+            List<word> partials = new List<word>();
+            foreach (string c in can)
+            {
+                List<word> candidates_words = BASE_WORD.findpartial(c);
+                if (candidates_words.Count == 0)
+                    BadCandidates.Add(c);
+                partials.AddRange(candidates_words);
+            }
+            partials.Sort();
+            r.Sort();
+            r.AddRange(partials);
+
+            r.Add(new word("", 0, s, null));
+
+            return r;
+        }
+        static List<string> candidates(string me, string s)
+        {
+            List<string> r = new List<string>();
+            foreach (string bad in BadCandidates)
+                if (me.StartsWith(bad))
+                    return r;
+            if (s == "") { r.Add(""); return r; }
+            foreach (variation v in variations)
+                if (s.Length >= v.variety.Length) if (s.Substring(0, v.variety.Length) == v.variety)
+                    {
+                        List<string> sub = candidates(me + v.sri_text + "|", s.Substring(v.variety.Length));
+                        foreach (string sb in sub) r.Add(v.sri_text + "|" + sb);
+                    }
+            return r;
+        }
+        static bool Initialized = false;
+        static void Initialize()
+        {
+            if (Initialized) return;
+            Initialized = true;
+            #region LOAD_VARIATIONS
+            TextReader ts = new StreamReader("variations.csv");
+            string[] lines = Regex.Split(ts.ReadToEnd(), "\r?\n");
+            ts.Close();
+            for (int i = 0; i < lines.Length; i++) if (lines[i] != "")
+                {
+                    string[] lst = Regex.Split(lines[i], ",");
+                    for (int j = 1; j < lst.Length; j++) if (lst[j] != "")
+                            if (lst[j] != "0") variations.Add(new variation(lst[0], lst[j]));
+                            else nulls.Add(lst[0]);
+                }
+            #endregion
+            #region LOAD_SPLITED_WORDS
+            ts = new StreamReader("splited.csv");
+            string[] splited_words = Regex.Split(ts.ReadToEnd(), "\r?\n");
+            ts.Close();
+            BASE_WORD = new word();
+
+            foreach (string s in splited_words)
+            {
+                Match m = Regex.Match(s, "(.*?),([0-9]+)");
+                if (m.Groups.Count == 3)
+                    BASE_WORD.Add(m.Groups[1].ToString(), Convert.ToInt32(m.Groups[2].ToString()));
+            }
+
+#endregion LOAD_SPLITED_WORDS
+        }
+        static word()
+        {
+            new Thread(new ThreadStart(Initialize)).Start();
+        }
+
+#endregion STATICS
+    }
+    public class variation
+    {
+        public string sri_text;
+        public string variety;
+        public variation(string s, string v) { sri_text = s; variety = v; }
+    }
+
+}

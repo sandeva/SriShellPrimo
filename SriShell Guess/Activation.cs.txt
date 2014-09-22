@@ -1,0 +1,156 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Text;
+using System.Windows.Forms;
+using sritext;
+using System.IO;
+using System.Text.RegularExpressions;
+using System.Globalization;
+using System.Management;
+using System.Security.Cryptography;
+
+namespace SriShell_Guess
+{
+    public partial class Activation : Form
+    {
+        static RSACryptoServiceProvider rsa;
+        static Activation()
+        {
+            rsa =new RSACryptoServiceProvider();
+            string publicKey ="<RSAKeyValue><Modulus>0o48h4AaNqivueFGQiTq5k3QB8mqUNkcxFplCwVt21nDpWtadne+rcRNBHA/3NiQyzxSaVDzLkFOAqISWW0bwVCP9sGibNJSmKOVZGtxuH3OM8QOmeII7RrYtdoageap1YeV5yNHY9emekOlvx78u7phCF8J0FUT/lwtGwQu3Vs=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
+            rsa.FromXmlString(publicKey);
+        }
+        public Activation()
+        {
+            InitializeComponent();            
+        }
+        static public byte[] inherent()
+        {
+            StringBuilder s = new StringBuilder();
+            Dictionary<string, List<string>> dict = new Dictionary<string, List<string>>();
+            dict["Win32_BIOS"]
+                = new List<string>(new string[] { null, null, "Name", "Version", "SerialNumber" });
+            dict["Win32_DiskDrive"]
+                = new List<string>(new string[] { "InterfaceType", "IDE", "Model", "SerialNumber", "Size" });
+
+            foreach (string k in dict.Keys)
+                foreach (ManagementObject objMO in new ManagementClass(k).GetInstances())
+                    foreach (string v in dict[k].GetRange(2, dict[k].Count - 2))
+                        try
+                        {
+                            if (dict[k][0] == null || objMO[dict[k][0]].ToString() == dict[k][1])
+                                s.Append(objMO[v]);
+                        }
+                        catch { }
+            return SHA256.Create().ComputeHash(Encoding.UTF8.GetBytes(s.ToString()));
+        }
+
+        static byte[] InstallationIDraw(string Name, string ProdKey)
+        {
+            byte[] buff = new byte[117];
+            Name += new string(new char[100]);
+            Name = Regex.Replace(Name, @"[^A-Za-z0-9]", "+").Substring(0, 100);
+            byte[] bName = Convert.FromBase64String(Name);
+            Buffer.BlockCopy(bName, 0, buff, 0, bName.Length);
+            ProdKey = ProdKey.Replace("-", "");
+            try
+            {
+                for (int i = 0; i < 10; i++)
+                    buff[i + 75] = byte.Parse(ProdKey.Substring(i * 2, 2), NumberStyles.HexNumber);
+            }
+            catch
+            {
+                MessageBox.Show("Invalid Product Key!");
+            }
+            Buffer.BlockCopy(inherent(), 0, buff, 85, 32);
+            return buff;
+        }
+
+        private void GO_Click(object sender, EventArgs e)
+        {
+            byte[] source = Encoding.Unicode.GetBytes(PROD.Text+NAME.Text);
+            TripleDESCryptoServiceProvider TDES = new TripleDESCryptoServiceProvider();
+            FileStream ms=new FileStream("hog.ini",FileMode.Create);
+            ms.Write(TDES.Key, 0, TDES.Key.Length);
+            ms.Write(TDES.IV, 0, TDES.IV.Length);
+            CryptoStream cs = new CryptoStream(ms, TDES.CreateEncryptor(), CryptoStreamMode.Write);
+            cs.Write(source, 0, source.Length);
+            cs.Close();
+            ms.Close();
+            HDDID.Text=Convert.ToBase64String(rsa.Encrypt(InstallationIDraw(NAME.Text, PROD.Text), false));
+        }
+
+        static int[] decryptvals(byte[] data)
+        {
+            byte[] key = inherent();
+            byte[] DesKey = new byte[24], DesIV = new byte[8];
+            Buffer.BlockCopy(key, 0, DesKey, 0, 24);
+            Buffer.BlockCopy(key, 24, DesIV, 0, 8);
+            TripleDESCryptoServiceProvider des = new TripleDESCryptoServiceProvider();
+            MemoryStream ms = new MemoryStream();
+            CryptoStream cs = new CryptoStream(ms, des.CreateDecryptor(DesKey, DesIV), CryptoStreamMode.Write);
+            cs.Write(data, 0, data.Length);
+            cs.Close();
+            data = ms.ToArray();
+            ms.Close();
+            int[] cryptData = new int[data.Length / sizeof(int)];
+            Buffer.BlockCopy(data, 0, cryptData, 0, data.Length);
+            return cryptData;
+        }
+
+        public static void Verify()
+        {
+            FileStream fs = new FileStream("hog.ini", FileMode.Open);
+            TripleDESCryptoServiceProvider des = new TripleDESCryptoServiceProvider();
+
+            byte[] DesKy = new byte[24];
+            byte[] DesIV = new byte[8];
+            byte[] source = new byte[fs.Length - 32];
+            fs.Read(DesKy, 0, DesKy.Length);
+            fs.Read(DesIV, 0, DesIV.Length);
+            fs.Read(source, 0, source.Length);
+            fs.Close();
+
+            MemoryStream ms = new MemoryStream();
+            CryptoStream cs = new CryptoStream(ms, des.CreateDecryptor(DesKy, DesIV), CryptoStreamMode.Write);
+            cs.Write(source, 0, source.Length);
+            cs.Close();
+            byte[] destination = ms.ToArray();
+            ms.Close();
+            string PRODText = Encoding.Unicode.GetString(destination, 0, 48);
+            string NAMEText = Encoding.Unicode.GetString(destination, 48, destination.Length - 48);
+
+            {
+                byte[] hashData = SHA1.Create().ComputeHash(InstallationIDraw(NAMEText, PRODText));
+                RSAPKCS1SignatureDeformatter rsaDeformatter = new RSAPKCS1SignatureDeformatter(rsa);
+                rsaDeformatter.SetHashAlgorithm("SHA1");
+                byte[] buff = File.ReadAllBytes("lie.ini");
+                byte[] bvals = new byte[buff[0]];
+                Buffer.BlockCopy(buff, 1, bvals, 0, bvals.Length);
+                trie.him=decryptvals(bvals);
+                byte[] signature = new byte[buff.Length - 1 - buff[0]];
+                Buffer.BlockCopy(buff, 1 + buff[0], signature, 0, signature.Length);
+                if (!rsaDeformatter.VerifySignature(hashData, signature))
+                    throw new Exception();
+            }
+        }
+        private void ACT_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                byte[] buff = Convert.FromBase64String(ACTCODE.Text);
+                File.WriteAllBytes("lie.ini", buff);
+                Verify();
+                Close();
+            }
+            catch
+            {
+                MessageBox.Show("Invalid Product Key","Error");
+                File.Delete("lie.ini");
+            }           
+        }
+    }
+}
